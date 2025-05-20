@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BitLens - Bitcoin Transaction Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        :root {
+            --primary: #ff9500;
+            --bg-dark: #0f0f12;
+            --bg-darker: #08080a;
+            --text-light: #f8f9fa;
+            --text-dim: #a0a0a8;
+            --accent: #2d8fff;
+            --success: #00c853;
+            --warning: #ffab00;
+            --danger: #ff3d71;
+            --border-radius: 12px;
+            --card-bg: rgba(23, 23, 28, 0.8);
+            --card-border: 1px solid rgba(255, 255, 255, 0.08);
+            --glass-effect: blur(12px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        html, body {
+            height: 100%;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            overflow-x: hidden;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            background: radial-gradient(circle at 50% 0%, rgba(255, 149, 0, 0.1), transparent 70%),
+                        radial-gradient(circle at 0% 50%, rgba(45, 143, 255, 0.05), transparent 70%),
+                        var(--bg-dark);
+        }
+
+        header {
+            backdrop-filter: var(--glass-effect);
+            -webkit-backdrop-filter: var(--glass-effect);
+            border-bottom: var(--card-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-light);
+            font-weight: 700;
+            text-decoration: none;
+            font-size: 1.25rem;
+        }
+
+        .logo-icon {
+            background: linear-gradient(135deg, var(--primary), #ff7e00);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+        }
+
+        .logo span {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        nav {
+            display: flex;
+            gap: 1rem;
+        }
+
+        button, .button {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover, .button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .button.primary {
+            background: linear-gradient(135deg, var(--primary), #ff7e00);
+            color: #0f0f12;
+            font-weight: 600;
+        }
+
+        .button.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 149, 0, 0.25);
+        }
+
+        .button.primary:active {
+            transform: translateY(0);
+        }
+
+        .button-ripple {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            transform: scale(0);
+            pointer-events: none; /* So it doesn't interfere with clicks */
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 2rem;
+            gap: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #ffffff 30%, #a0a0a8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .highlight {
+            position: relative;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            color: var(--text-dim);
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: var(--card-border);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            backdrop-filter: var(--glass-effect);
+            -webkit-backdrop-filter: var(--glass-effect);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 149, 0, 0.1);
+            color: var(--primary);
+        }
+
+        .card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .visualization-container {
+            background: var(--card-bg);
+            border: var(--card-border);
+            border-radius: var(--border-radius);
+            padding: 1.5rem;
+            height: 500px;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: var(--glass-effect);
+            -webkit-backdrop-filter: var(--glass-effect);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .visualization-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .visualization-header h2 {
+            font-size: 1.5rem;
+        }
+
+        .visualization-controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .visualization-tabs {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .visualization-tab {
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-dim);
+            transition: all 0.3s ease;
+        }
+
+        .visualization-tab.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+        }
+
+        .visualization-tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #visualization {
+            flex: 1;
+            position: relative;
+        }
+        #visualization svg .axis-style path,
+        #visualization svg .axis-style line {
+            stroke: var(--text-dim);
+            shape-rendering: crispEdges;
+        }
+        #visualization svg .axis-style text {
+            fill: var(--text-dim);
+            font-size: 0.75rem;
+        }
+
+
+        .tx-node {
+            cursor: pointer;
+            /* transition: all 0.3s ease; D3 handles transitions */
+        }
+
+        .tx-link {
+            mix-blend-mode: screen;
+        }
+
+        .tx-details {
+            position: absolute; /* D3 will position it on mouseover */
+            background: var(--card-bg);
+            border: var(--card-border);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            width: 300px;
+            z-index: 10;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            backdrop-filter: var(--glass-effect);
+            -webkit-backdrop-filter: var(--glass-effect);
+            display: none; /* Initially hidden */
+            pointer-events: none; /* So it doesn't interfere with mouse events on SVG */
+        }
+
+        .tx-details h4 {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .tx-details-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            padding: 0.25rem 0;
+        }
+
+        .tx-details-label {
+            color: var(--text-dim);
+            margin-right: 0.5rem;
+        }
+
+        .tx-details-value {
+            font-weight: 500;
+            word-break: break-all; /* For long IDs */
+            text-align: right;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
+        .status-confirmed {
+            background-color: var(--success);
+        }
+
+        .status-pending {
+            background-color: var(--warning);
+        }
+
+        .search-container {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--border-radius);
+            padding: 0.5rem 1rem;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s ease;
+        }
+
+        .search-container:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(255, 149, 0, 0.2);
+        }
+
+        .search-icon {
+            color: var(--text-dim);
+            margin-right: 0.5rem;
+        }
+
+        .search-input {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 1rem;
+            flex: 1;
+            padding: 0.5rem;
+            outline: none;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .legend {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            /* transform: translateX(-50%) translateY(100px); GSAP handles this */
+            background: var(--card-bg);
+            border: var(--card-border);
+            border-radius: var(--border-radius);
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            backdrop-filter: var(--glass-effect);
+            -webkit-backdrop-filter: var(--glass-effect);
+            z-index: 1000;
+            /* animation: slideUp 0.5s forwards; GSAP handles this */
+        }
+
+        .toast-icon {
+            color: var(--primary); /* Default, can be overridden by JS */
+        }
+
+        .loading-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            width: 0%; /* Initial width */
+            animation: loadingAnimation 0.6s ease-out forwards; 
+        }
+        
+        @keyframes loadingAnimation {
+            0% { width: 0%; opacity: 1;}
+            90% { width: 100%; opacity: 1;}
+            100% { width: 100%; opacity: 0;}
+        }
+
+
+        .cursor-highlight {
+            position: fixed;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 149, 0, 0.1) 0%, rgba(255, 149, 0, 0) 70%);
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: -1;
+            opacity: 0; /* Start hidden, GSAP will fade it in */
+        }
+
+        @media (max-width: 768px) {
+            header {
+                padding: 1rem;
+            }
+            nav {
+                gap: 0.5rem; /* Smaller gap for nav buttons on small screens */
+            }
+            button, .button {
+                 padding: 0.5rem 0.75rem; /* Smaller padding for buttons */
+                 font-size: 0.8rem;
+            }
+             .logo span {
+                display: none; /* Hide BitLens text on very small screens if logo icon is enough */
+            }
+
+            main {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+            .tagline {
+                font-size: 1rem;
+            }
+
+            .visualization-container {
+                height: 400px;
+                 padding: 1rem;
+            }
+             .visualization-header h2 {
+                font-size: 1.25rem;
+            }
+            .visualization-tabs {
+                padding-bottom: 0.5rem;
+                margin-bottom: 0.5rem;
+                overflow-x: auto; /* Allow tabs to scroll horizontally if they don't fit */
+            }
+            .visualization-tab {
+                padding: 0.4rem 0.8rem;
+                font-size: 0.85rem;
+            }
+
+
+            .cards {
+                grid-template-columns: 1fr;
+            }
+            .legend {
+                flex-wrap: wrap; /* Allow legend items to wrap */
+                gap: 0.5rem 1rem;
+                font-size: 0.8rem;
+            }
+            .legend-item {
+                font-size: 0.8rem;
+            }
+        }
+
+        /* Utility Classes */
+        .mt-1 { margin-top: 0.25rem; }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mb-1 { margin-bottom: 0.25rem; }
+        .mb-2 { margin-bottom: 0.5rem; }
+        .mb-4 { margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="cursor-highlight"></div>
+    <header>
+        <a href="#" class="logo">
+            <div class="logo-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+                    <line x1="12" y1="6" x2="12" y2="18"></line>
+                </svg>
+            </div>
+            <span>BitLens</span>
+        </a>
+
+        <nav>
+            <button class="connect-wallet-btn button primary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-link">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                Connect Wallet
+            </button>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h1>Visualize the Bitcoin <span class="highlight">Network</span> in Real-Time</h1>
+            <p class="tagline">BitLens provides an intuitive and powerful way to explore Bitcoin transactions, analyze mempool activity, and understand network patterns with advanced visualization techniques.</p>
+            
+            <div class="search-container">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" class="search-input" placeholder="Search by transaction ID, address, or block hash">
+            </div>
+        </section>
+
+        <section class="visualization-container">
+            <div class="visualization-header">
+                <h2>Network Activity</h2>
+                <div class="visualization-controls">
+                    <button id="pause-play-btn" title="Pause/Play Animation">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause">
+                            <rect x="6" y="4" width="4" height="16"></rect>
+                            <rect x="14" y="4" width="4" height="16"></rect>
+                        </svg>
+                    </button>
+                    <button id="reset-zoom-btn" title="Reset Zoom/Pan">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-refresh-cw">
+                            <polyline points="1 4 1 10 7 10"></polyline>
+                            <polyline points="23 20 23 14 17 14"></polyline>
+                            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="visualization-tabs">
+                <div class="visualization-tab active" data-view="network">Network</div>
+                <div class="visualization-tab" data-view="mempool">Mempool</div>
+                <div class="visualization-tab" data-view="blocks">Blocks</div>
+                <div class="visualization-tab" data-view="metrics">Metrics</div>
+            </div>
+            
+            <div id="visualization"></div> <!-- D3 will render SVG here -->
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ff9500;"></div>
+                    High Value Tx
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #2d8fff;"></div>
+                    Standard Tx
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #00c853;"></div>
+                    Confirmed
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #ffab00;"></div>
+                    Pending
+                </div>
+            </div>
+        </section>
+
+        <section class="cards">
+            <div class="card">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                </div>
+                <h3>Real-time Analysis</h3>
+                <p>Monitor Bitcoin network activity as it happens. Watch transactions propagate through the network and get insights into the health and performance of the blockchain.</p>
+            </div>
+            
+            <div class="card">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
+                </div>
+                <h3>Mempool Explorer</h3>
+                <p>Dive into the mempool to see unconfirmed transactions, analyze fee markets, and predict which transactions will be included in upcoming blocks.</p>
+            </div>
+            
+            <div class="card">
+                <div class="card-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                    </svg>
+                </div>
+                <h3>Block Inspector</h3>
+                <p>Examine the contents of blocks in a visually intuitive way. See transaction relationships, merkle trees, and understand how data is structured on the blockchain.</p>
+            </div>
+        </section>
+    </main>
+
+    <div class="tx-details" id="tx-details">
+        <h4>Transaction Details</h4>
+        <div class="tx-details-row">
+            <div class="tx-details-label">Transaction ID:</div>
+            <div class="tx-details-value tx-id">8f4af...</div>
+        </div>
+        <div class="tx-details-row">
+            <div class="tx-details-label">Amount:</div>
+            <div class="tx-details-value tx-amount">0.25 BTC</div>
+        </div>
+        <div class="tx-details-row">
+            <div class="tx-details-label">Fee:</div>
+            <div class="tx-details-value tx-fee">0.00012 BTC</div>
+        </div>
+        <div class="tx-details-row">
+            <div class="tx-details-label">Status:</div>
+            <div class="tx-details-value tx-status"><span class="status-indicator status-confirmed"></span> Confirmed</div>
+        </div>
+        <div class="tx-details-row">
+            <div class="tx-details-label">Time:</div>
+            <div class="tx-details-value tx-time">2 minutes ago</div>
+        </div>
+    </div>
+
+    <script>
+        // --- Global/Module Scope Variables ---
+        let networkSimulation; 
+        let currentNetworkData = { nodes: [], links: [] };
+        let networkUpdateIntervalId;
+        let isNetworkAnimationPaused = false;
+        const visContainer = document.getElementById('visualization');
+        const txTooltip = d3.select('#tx-details'); // Cache D3 selection for tooltip
+
+        // --- Utility Functions ---
+        function randomTxId() {
+            const chars = '0123456789abcdef';
+            let result = '';
+            for (let i = 0; i < 8; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result + '...' + chars.charAt(Math.floor(Math.random() * chars.length)) + chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+
+        // --- UI Effects & Interactions ---
+        const cursorHighlight = document.querySelector('.cursor-highlight');
+        if (cursorHighlight) {
+            gsap.set(cursorHighlight, { opacity: 0 }); // Start hidden
+            document.addEventListener('mousemove', (e) => {
+                gsap.to(cursorHighlight, {
+                    duration: 0.5,
+                    x: e.clientX,
+                    y: e.clientY,
+                    opacity: 1,
+                    ease: "power2.out"
+                });
+            });
+            document.addEventListener('mouseleave', () => {
+                 gsap.to(cursorHighlight, { duration: 0.3, opacity: 0 });
+            });
+        }
+        
+        document.querySelectorAll('button, .button').forEach(button => {
+            button.addEventListener('click', function(e) {
+                // Ripple Effect
+                let ripple = document.createElement('span');
+                ripple.classList.add('button-ripple');
+                this.appendChild(ripple);
+                
+                let rect = this.getBoundingClientRect();
+                let x = e.clientX - rect.left;
+                let y = e.clientY - rect.top;
+                
+                ripple.style.left = `${x}px`;
+                ripple.style.top = `${y}px`;
+                
+                gsap.to(ripple, {
+                    duration: 0.6,
+                    scale: Math.max(rect.width, rect.height) / (ripple.offsetWidth || 10) * 1.5, // Scale to fill button, prevent div by zero
+                    opacity: 0,
+                    ease: "power1.out",
+                    onComplete: () => {
+                        ripple.remove();
+                    }
+                });
+
+                // Specific Button Actions
+                if (this.classList.contains('connect-wallet-btn') && !this.classList.contains('connected')) {
+                    showToast('Wallet connection initiated...', 'info');
+                    this.disabled = true;
+                    setTimeout(() => {
+                        showToast('Wallet connected successfully!', 'success');
+                        this.innerHTML = `
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            Connected
+                        `;
+                        this.classList.remove('primary');
+                        this.classList.add('connected');
+                        this.disabled = false;
+                    }, 2000);
+                } else if (this.id === 'pause-play-btn') {
+                    toggleNetworkAnimation();
+                } else if (this.id === 'reset-zoom-btn') {
+                    resetNetworkView();
+                }
+            });
+        });
+
+        document.querySelectorAll('.visualization-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                if (this.classList.contains('active')) return;
+                document.querySelectorAll('.visualization-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                updateVisualization(this.dataset.view);
+            });
+        });
+
+        function showToast(message, type = 'info') {
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) existingToast.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            
+            let iconSvg = '';
+            let iconColor = 'var(--primary)';
+
+            switch(type) {
+                case 'success':
+                    iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+                    iconColor = 'var(--success)';
+                    break;
+                case 'warning':
+                    iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+                    iconColor = 'var(--warning)';
+                    break;
+                case 'danger':
+                    iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+                    iconColor = 'var(--danger)';
+                    break;
+                case 'info':
+                default:
+                    iconSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+                    iconColor = 'var(--accent)';
+                    break;
+            }
+            
+            toast.innerHTML = `<div class="toast-icon" style="color: ${iconColor};">${iconSvg}</div><div>${message}</div>`;
+            document.body.appendChild(toast);
+            
+            gsap.fromTo(toast, 
+                { y: 100, opacity: 0, transform: "translateX(-50%)" }, 
+                { duration: 0.5, y: 0, opacity: 1, transform: "translateX(-50%)", ease: "power2.out" }
+            );
+            
+            setTimeout(() => {
+                gsap.to(toast, {
+                    duration: 0.5, opacity: 0, y: 20, ease: "power2.in",
+                    onComplete: () => toast.remove()
+                });
+            }, 3000);
+        }
+
+        // --- Data Generation ---
+        function generateTransactionData(count = 30) { // Reduced initial count
+            const nodes = [];
+            const links = [];
+            const nodeIdPrefix = "node_";
+            
+            for (let i = 0; i < count; i++) {
+                nodes.push({
+                    id: nodeIdPrefix + i,
+                    value: Math.random() * 10,
+                    status: Math.random() > 0.3 ? 'confirmed' : 'pending',
+                    time: Math.floor(Math.random() * 60) + ' minutes ago',
+                    txid: randomTxId()
+                });
+            }
+            
+            for (let i = 0; i < count * 1.2; i++) { // Reduced link density slightly
+                if (nodes.length < 2) break;
+                let sourceIndex = Math.floor(Math.random() * nodes.length);
+                let targetIndex = Math.floor(Math.random() * nodes.length);
+                
+                const sourceId = nodes[sourceIndex].id;
+                const targetId = nodes[targetIndex].id;
+
+                if (sourceId !== targetId && !links.some(l => (l.source === sourceId && l.target === targetId) || (l.source === targetId && l.target === sourceId))) {
+                    links.push({
+                        source: sourceId,
+                        target: targetId,
+                        value: Math.random()
+                    });
+                }
+            }
+            return { nodes, links };
+        }
+        
+        // --- D3 Visualization Core ---
+        function updateVisualization(view) {
+            if (networkUpdateIntervalId) {
+                clearInterval(networkUpdateIntervalId);
+                networkUpdateIntervalId = null;
+            }
+            isNetworkAnimationPaused = false; // Reset pause state
+            const pausePlayBtn = document.getElementById('pause-play-btn');
+            if(pausePlayBtn) { // Ensure button exists before trying to update its content
+                 pausePlayBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+            }
+
+
+            visContainer.innerHTML = ''; // Clear previous visualization
+            
+            const loadingBar = document.createElement('div');
+            loadingBar.className = 'loading-bar';
+            visContainer.appendChild(loadingBar);
+            
+            setTimeout(() => {
+                if (visContainer.contains(loadingBar)) loadingBar.remove();
+                
+                switch(view) {
+                    case 'network': initNetworkVisualization(); break;
+                    case 'mempool': renderMempoolVisualization(); break;
+                    case 'blocks': renderBlocksVisualization(); break;
+                    case 'metrics': renderMetricsVisualization(); break;
+                    default: initNetworkVisualization();
+                }
+            }, 600); 
+        }
+
+        // --- Network Visualization Specific ---
+        function initNetworkVisualization() {
+            const width = visContainer.clientWidth;
+            const height = visContainer.clientHeight;
+            
+            d3.select('#visualization svg').remove(); // Ensure clean slate
+
+            const svg = d3.select('#visualization')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+                
+            const defs = svg.append('defs');
+            defs.append('pattern')
+                .attr('id', 'grid-pattern') 
+                .attr('width', 50)
+                .attr('height', 50)
+                .attr('patternUnits', 'userSpaceOnUse')
+                .append('path')
+                .attr('d', 'M 50 0 L 0 0 0 50')
+                .attr('fill', 'none')
+                .attr('stroke', 'rgba(255, 255, 255, 0.05)')
+                .attr('stroke-width', 1);
+                
+            svg.append('rect')
+                .attr('width', width)
+                .attr('height', height)
+                .attr('fill', 'url(#grid-pattern)');
+
+            const zoomableGroup = svg.append("g").attr("class", "zoomable-content");
+            const linkGroup = zoomableGroup.append('g').attr('class', 'links');
+            const nodeGroup = zoomableGroup.append('g').attr('class', 'nodes');
+                
+            currentNetworkData = generateTransactionData();
+            
+            networkSimulation = d3.forceSimulation(currentNetworkData.nodes)
+                .force('link', d3.forceLink(currentNetworkData.links).id(d => d.id).distance(80).strength(0.2))
+                .force('charge', d3.forceManyBody().strength(-150))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(d => Math.max(5, d.value * 1.5) + 5).strength(0.7))
+                .on('tick', () => {
+                    linkGroup.selectAll('line')
+                        .attr('x1', d => d.source.x)
+                        .attr('y1', d => d.source.y)
+                        .attr('x2', d => d.target.x)
+                        .attr('y2', d => d.target.y);
+                    nodeGroup.selectAll('circle')
+                        .attr('cx', d => d.x)
+                        .attr('cy', d => d.y);
+                });
+            
+            const zoomBehavior = d3.zoom()
+                .scaleExtent([0.3, 3])
+                .on("zoom", (event) => {
+                    zoomableGroup.attr("transform", event.transform);
+                });
+            svg.call(zoomBehavior);
+            svg.property("__zoom", zoomBehavior); // Store for later reset
+
+
+            redrawNetworkElements(nodeGroup, linkGroup, currentNetworkData, networkSimulation);
+            
+            if (networkUpdateIntervalId) clearInterval(networkUpdateIntervalId);
+            networkUpdateIntervalId = setInterval(() => {
+                if (isNetworkAnimationPaused || currentNetworkData.nodes.length > 70) return;
+                
+                const nodeIdPrefix = "node_";
+                // Ensure new ID is unique, even if nodes are removed. Find max existing ID number.
+                let maxIdNum = -1;
+                currentNetworkData.nodes.forEach(n => {
+                    const num = parseInt(n.id.replace(nodeIdPrefix, ''));
+                    if (!isNaN(num) && num > maxIdNum) maxIdNum = num;
+                });
+                const newIdNum = maxIdNum + 1;
+
+                const newNode = {
+                    id: nodeIdPrefix + newIdNum,
+                    value: Math.random() * 10,
+                    status: 'pending',
+                    time: 'just now',
+                    txid: randomTxId()
+                };
+                currentNetworkData.nodes.push(newNode);
+                
+                const numLinks = Math.floor(Math.random() * 2) + 1;
+                for (let i = 0; i < numLinks && currentNetworkData.nodes.length > 1; i++) {
+                    let targetNode;
+                    // Try to pick a target that isn't the new node itself.
+                    const possibleTargets = currentNetworkData.nodes.filter(n => n.id !== newNode.id);
+                    if (possibleTargets.length > 0) {
+                        targetNode = possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+                         currentNetworkData.links.push({
+                            source: newNode.id,
+                            target: targetNode.id,
+                            value: Math.random()
+                        });
+                    }
+                }
+                redrawNetworkElements(nodeGroup, linkGroup, currentNetworkData, networkSimulation);
+                if (newNode.value > 7) showToast(`New high-value transaction: ${newNode.value.toFixed(2)} BTC`, 'info');
+            }, 3500); 
+        }
+
+        function redrawNetworkElements(nodeGroup, linkGroup, data, simulation) {
+            const linkData = data.links.filter(l => { // Filter out links with missing nodes
+                const sourceNode = data.nodes.find(n => n.id === (l.source.id || l.source));
+                const targetNode = data.nodes.find(n => n.id === (l.target.id || l.target));
+                return sourceNode && targetNode;
+            });
+
+            const link = linkGroup.selectAll('line')
+                .data(linkData, d => (d.source.id || d.source) + "-" + (d.target.id || d.target));
+
+            link.exit().transition().duration(300).attr("stroke-opacity", 0).remove();
+
+            link.enter()
+                .append('line')
+                .attr('class', 'tx-link')
+                .attr('stroke-width', d => Math.max(1, d.value * 2.5))
+                .attr('stroke', 'rgba(255, 149, 0, 0.15)')
+                .attr("stroke-opacity", 0)
+                .transition().duration(300)
+                .attr("stroke-opacity", 1);
+
+            const node = nodeGroup.selectAll('circle')
+                .data(data.nodes, d => d.id);
+
+            node.exit().transition().duration(300).attr("r", 0).remove();
+
+            const nodeEnter = node.enter()
+                .append('circle')
+                .attr('class', 'tx-node')
+                .attr('r', 0)
+                .attr('fill', d_node => (d_node.value > 5 ? 'var(--primary)' : 'var(--accent)'))
+                .attr('stroke', d_node => d_node.status === 'confirmed' ? 'var(--success)' : 'var(--warning)')
+                .attr('stroke-width', 2)
+                .on('mouseover', function(event, d_node) {
+                    txTooltip.style('display', 'block')
+                        .style('left', (event.pageX + 15) + 'px')
+                        .style('top', (event.pageY + 15) + 'px');
+                    txTooltip.select('.tx-id').text(d_node.txid);
+                    txTooltip.select('.tx-amount').text(d_node.value.toFixed(2) + ' BTC');
+                    txTooltip.select('.tx-fee').text((d_node.value * 0.0005).toFixed(5) + ' BTC'); // Example fee
+                    txTooltip.select('.tx-status')
+                        .html(`<span class="status-indicator ${d_node.status === 'confirmed' ? 'status-confirmed' : 'status-pending'}"></span> ${d_node.status === 'confirmed' ? 'Confirmed' : 'Pending'}`);
+                    txTooltip.select('.tx-time').text(d_node.time);
+                    d3.select(this).transition().duration(150).attr('stroke-width', 3).attr('stroke', '#fff');
+                })
+                .on('mouseout', function(event, d_node) {
+                    txTooltip.style('display', 'none');
+                    d3.select(this).transition().duration(150).attr('stroke-width', 2).attr('stroke', d_node.status === 'confirmed' ? 'var(--success)' : 'var(--warning)');
+                })
+                .call(drag(simulation));
+
+            nodeEnter.transition().duration(500).attr('r', d_node => Math.max(5, d_node.value * 1.5));
+            nodeEnter.filter(d_node => Math.random() > 0.7).each(function() { pulseAnimation(d3.select(this)); });
+            
+            simulation.nodes(data.nodes);
+            simulation.force('link').links(linkData); // Use filtered linkData
+            if (!isNetworkAnimationPaused) simulation.alpha(0.6).restart();
+        }
+        
+        function toggleNetworkAnimation() {
+            isNetworkAnimationPaused = !isNetworkAnimationPaused;
+            const btn = document.getElementById('pause-play-btn');
+            if (isNetworkAnimationPaused) {
+                if(networkSimulation) networkSimulation.stop();
+                // No need to clear interval here, its callback checks isNetworkAnimationPaused
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-play"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+                showToast("Animation Paused", "info");
+            } else {
+                if(networkSimulation) networkSimulation.alpha(0.3).restart();
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pause"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+                showToast("Animation Resumed", "info");
+            }
+        }
+
+        function resetNetworkView() {
+            const svg = d3.select('#visualization svg');
+            if (!svg.empty() && svg.property("__zoom")) {
+                 svg.transition().duration(750).call(
+                    svg.property("__zoom").transform, 
+                    d3.zoomIdentity 
+                );
+                 showToast("View Reset", "info");
+            }
+        }
+
+
+        function drag(simulation) {
+            function dragstarted(event, d_node) {
+                if (!isNetworkAnimationPaused && !event.active) simulation.alphaTarget(0.3).restart();
+                d_node.fx = d_node.x;
+                d_node.fy = d_node.y;
+            }
+            function dragged(event, d_node) {
+                d_node.fx = event.x;
+                d_node.fy = event.y;
+            }
+            function dragended(event, d_node) {
+                if (!isNetworkAnimationPaused && !event.active) simulation.alphaTarget(0);
+                // To unpin, set d.fx = null; d.fy = null;
+                // For now, keep them pinned after dragging.
+            }
+            return d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+        }
+
+        function pulseAnimation(selection) {
+            (function repeat() {
+                if (!selection.node() || !selection.datum()) return; 
+                const d_node = selection.datum(); 
+                selection
+                    .transition().duration(700)
+                    .attr('r', Math.max(5, d_node.value * 1.5) * 1.2) 
+                    .transition().duration(700)
+                    .attr('r', Math.max(5, d_node.value * 1.5)) 
+                    .on("end", repeat);
+            })();
+        }
+
+        // --- Other Visualization Renderers (Mempool, Blocks, Metrics) ---
+        function renderMempoolVisualization() {
+            const width = visContainer.clientWidth;
+            const height = visContainer.clientHeight;
+            const svg = d3.select('#visualization').append('svg').attr('width', width).attr('height', height);
+            const defs = svg.append('defs');
+            
+            svg.append('text').attr('x', width / 2).attr('y', 30).attr('text-anchor', 'middle').attr('fill', 'var(--text-dim)').style('font-size', '16px').text('Mempool Fee Rate Distribution (Sat/vB)');
+                
+            const feeRates = Array.from({length: 50}, (_, i) => ({
+                feeRate: i + 1,
+                count: Math.max(0, Math.floor(Math.random() * 2000 * Math.exp(-(i+1)/10) + 50)) 
+            }));
+            
+            const margin = {top: 50, right: 30, bottom: 60, left: 70};
+            const chartWidth = width - margin.left - margin.right;
+            const chartHeight = height - margin.top - margin.bottom;
+
+            const chartGroup = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const xScale = d3.scaleLinear().domain([0, d3.max(feeRates, d => d.feeRate)]).range([0, chartWidth]);
+            const yScale = d3.scaleLinear().domain([0, d3.max(feeRates, d => d.count) * 1.1]).range([chartHeight, 0]);
+                
+            const xAxis = d3.axisBottom(xScale).ticks(10);
+            const yAxis = d3.axisLeft(yScale).ticks(5).tickFormat(d3.format("~s")); 
+                
+            chartGroup.append('g').attr('transform', `translate(0, ${chartHeight})`).attr('class', 'axis-style').call(xAxis);
+            chartGroup.append('g').attr('class', 'axis-style').call(yAxis);
+
+
+            const area = d3.area()
+                .x(d => xScale(d.feeRate))
+                .y0(chartHeight)
+                .y1(d => yScale(d.count))
+                .curve(d3.curveMonotoneX);
+                
+            const areaGradient = defs.append('linearGradient').attr('id', 'mempool-area-gradient').attr('gradientTransform', 'rotate(90)');
+            areaGradient.append('stop').attr('offset', '5%').attr('stop-color', 'var(--primary)').attr('stop-opacity', 0.6);
+            areaGradient.append('stop').attr('offset', '95%').attr('stop-color', 'var(--primary)').attr('stop-opacity', 0.1);
+                
+            chartGroup.append('path').datum(feeRates).attr('fill', 'url(#mempool-area-gradient)').attr('d', area)
+                .attr("opacity", 0).transition().duration(1000).attr("opacity", 1);
+                
+            chartGroup.selectAll('.fee-dot')
+                .data(feeRates)
+                .enter().append('circle').attr('class', 'fee-dot')
+                .attr('cx', d => xScale(d.feeRate))
+                .attr('cy', d => yScale(d.count))
+                .attr('r', 0).attr('fill', 'var(--primary)').attr('stroke', 'var(--bg-dark)').attr('stroke-width', 1.5)
+                .style('cursor', 'pointer')
+                .on('mouseover', function(event, d_fee) {
+                    txTooltip.style('display', 'block').style('left', (event.pageX + 10) + 'px').style('top', (event.pageY - 50) + 'px');
+                    txTooltip.html(`
+                        <h4>Fee Rate Details</h4>
+                        <div class="tx-details-row"><div class="tx-details-label">Fee Rate:</div><div class="tx-details-value">${d_fee.feeRate} sat/vB</div></div>
+                        <div class="tx-details-row"><div class="tx-details-label">Tx Count:</div><div class="tx-details-value">${d3.format(",")(d_fee.count)}</div></div>
+                        <div class="tx-details-row"><div class="tx-details-label">Est. Time:</div><div class="tx-details-value">~${Math.max(1, Math.round(60 / d_fee.feeRate * 2))} min</div></div>
+                    `);
+                    d3.select(this).transition().duration(150).attr('r', 6);
+                })
+                .on('mouseout', function() {
+                    txTooltip.style('display', 'none');
+                    d3.select(this).transition().duration(150).attr('r', 4);
+                })
+                .transition().duration(500).delay((d,i) => i * 10).attr('r', 4);
+        }
+        
+        function renderBlocksVisualization() {
+            const width = visContainer.clientWidth;
+            const height = visContainer.clientHeight;
+            const svg = d3.select('#visualization').append('svg').attr('width', width).attr('height', height);
+
+            svg.append('text').attr('x', width / 2).attr('y', 30).attr('text-anchor', 'middle').attr('fill', 'var(--text-light)').style('font-size', '18px').text('Recent Blocks');
+            
+            const blocks = Array.from({length: 10}, (_, i) => ({
+                height: 800000 - i,
+                timestamp: Date.now() - i * 10 * 60 * 1000 - Math.random() * 5 * 60 * 1000, 
+                txCount: Math.floor(Math.random() * 2500) + 500,
+                size: (Math.random() * 1.5 + 0.5) * 1024 * 1024,
+                hash: randomTxId() + randomTxId().substring(0,4)
+            }));
+            
+            const blockSpacing = (height - 100) / blocks.length;
+            const blockHeightVisual = Math.min(35, blockSpacing * 0.7);
+            const maxBlockWidth = width * 0.6;
+
+            const blockScale = d3.scaleLinear()
+                .domain([d3.min(blocks, d=>d.size), d3.max(blocks, d => d.size)])
+                .range([maxBlockWidth * 0.3, maxBlockWidth]);
+
+            const blockGroups = svg.selectAll('.block-group')
+                .data(blocks).enter()
+                .append('g').attr('class', 'block-group')
+                .attr('transform', (d, i) => `translate(${width/2}, ${60 + i * blockSpacing})`)
+                .style('cursor', 'pointer')
+                .attr("opacity", 0)
+                .on('mouseover', function(event, d_block) {
+                    txTooltip.style('display', 'block').style('left', (event.pageX + 10) + 'px').style('top', (event.pageY - 100) + 'px');
+                    txTooltip.html(`
+                        <h4>Block #${d_block.height}</h4>
+                        <div class="tx-details-row"><div class="tx-details-label">Hash:</div><div class="tx-details-value">${d_block.hash}</div></div>
+                        <div class="tx-details-row"><div class="tx-details-label">Transactions:</div><div class="tx-details-value">${d3.format(",")(d_block.txCount)}</div></div>
+                        <div class="tx-details-row"><div class="tx-details-label">Size:</div><div class="tx-details-value">${(d_block.size / (1024 * 1024)).toFixed(2)} MB</div></div>
+                        <div class="tx-details-row"><div class="tx-details-label">Time:</div><div class="tx-details-value">${new Date(d_block.timestamp).toLocaleTimeString()}</div></div>
+                    `);
+                    d3.select(this).select('rect').transition().duration(150).attr('stroke', '#fff').attr('stroke-width', 2);
+                })
+                .on('mouseout', function() {
+                    txTooltip.style('display', 'none');
+                    d3.select(this).select('rect').transition().duration(150).attr('stroke', 'var(--primary)').attr('stroke-width', 1);
+                });
+
+            blockGroups.transition().duration(500).delay((d,i)=> i * 50).attr("opacity", 1);
+                
+            blockGroups.append('rect')
+                .attr('x', d => -blockScale(d.size) / 2)
+                .attr('y', -blockHeightVisual / 2)
+                .attr('width', d => blockScale(d.size))
+                .attr('height', blockHeightVisual)
+                .attr('rx', 5).attr('ry', 5)
+                .attr('fill', 'var(--card-bg)')
+                .attr('stroke', 'var(--primary)').attr('stroke-width', 1);
+                
+            blockGroups.append('text')
+                .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+                .attr('fill', 'var(--text-light)').style('font-size', '12px')
+                .text(d => `#${d.height}`);
+                
+            blockGroups.filter((d, i) => i < blocks.length - 1)
+                .append('line')
+                .attr('x1', 0).attr('y1', blockHeightVisual / 2)
+                .attr('x2', 0).attr('y2', blockSpacing - blockHeightVisual / 2)
+                .attr('stroke', 'var(--primary)').attr('stroke-width', 1).attr('stroke-dasharray', '3 3');
+                
+            const newestBlockRect = blockGroups.filter((d, i) => i === 0).select('rect');
+            if (!newestBlockRect.empty()) {
+                (function pulseBlockRect() {
+                    if (!newestBlockRect.node() || !visContainer.querySelector('.block-group')) return; // Stop if view changed
+                    newestBlockRect.transition().duration(1000).attr('stroke', '#fff').attr('stroke-width', 1.5)
+                        .transition().duration(1000).attr('stroke', 'var(--primary)').attr('stroke-width', 1)
+                        .on('end', pulseBlockRect);
+                })();
+            }
+        }
+        
+        function renderMetricsVisualization() {
+            const width = visContainer.clientWidth;
+            const height = visContainer.clientHeight;
+            const svg = d3.select('#visualization').append('svg').attr('width', width).attr('height', height);
+            const defs = svg.append('defs');
+
+            svg.append('text').attr('x', width / 2).attr('y', 30).attr('text-anchor', 'middle').attr('fill', 'var(--text-light)').style('font-size', '18px').text('Network Hashrate (EH/s) - Last 30 Days');
+            
+            const hashrateData = Array.from({length: 30}, (_, i) => {
+                const date = new Date();
+                date.setDate(date.getDate() - (29 - i));
+                return { date, hashrate: Math.random() * 50 + 350 + (i * 1.5) }; 
+            });
+            
+            const margin = {top: 60, right: 30, bottom: 70, left: 70};
+            const chartWidth = width - margin.left - margin.right;
+            const chartHeight = height - margin.top - margin.bottom;
+
+            const chartGroup = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const xScale = d3.scaleTime().domain(d3.extent(hashrateData, d => d.date)).range([0, chartWidth]);
+            const yScale = d3.scaleLinear().domain([0, d3.max(hashrateData, d => d.hashrate) * 1.1]).range([chartHeight, 0]);
+                
+            const xAxis = d3.axisBottom(xScale).ticks(6).tickFormat(d3.timeFormat('%b %d'));
+            const yAxis = d3.axisLeft(yScale).ticks(5).tickFormat(d => d.toFixed(0));
+                
+            chartGroup.append('g').attr('transform', `translate(0, ${chartHeight})`).attr('class', 'axis-style').call(xAxis);
+            chartGroup.append('g').attr('class', 'axis-style').call(yAxis);
+
+            const lineGradient = defs.append('linearGradient').attr('id', 'hash-line-gradient').attr('gradientUnits', 'userSpaceOnUse')
+                .attr('x1', 0).attr('y1', yScale(d3.min(hashrateData, d => d.hashrate))) // Start gradient from min value
+                .attr('x2', 0).attr('y2', yScale(d3.max(hashrateData, d => d.hashrate))); // End at max
+            lineGradient.append('stop').attr('offset', '0%').attr('stop-color', 'var(--accent)');
+            lineGradient.append('stop').attr('offset', '100%').attr('stop-color', 'var(--primary)');
+                
+            const line = d3.line().x(d => xScale(d.date)).y(d => yScale(d.hashrate)).curve(d3.curveMonotoneX);
+            const path = chartGroup.append('path').datum(hashrateData)
+                .attr('fill', 'none').attr('stroke', 'url(#hash-line-gradient)').attr('stroke-width', 2.5).attr('d', line);
+                
+            const pathLength = path.node().getTotalLength();
+            path.attr('stroke-dasharray', pathLength).attr('stroke-dashoffset', pathLength)
+                .transition().duration(2000).ease(d3.easeSinInOut).attr('stroke-dashoffset', 0);
+            
+            const areaGradient = defs.append('linearGradient').attr('id', 'hash-area-gradient').attr('gradientTransform', 'rotate(90)'); // Use 'rotate(90)' for vertical
+            areaGradient.append('stop').attr('offset', '5%').attr('stop-color', 'var(--primary)').attr('stop-opacity', 0.3);
+            areaGradient.append('stop').attr('offset', '95%').attr('stop-color', 'var(--accent)').attr('stop-opacity', 0.05);
+
+            const area = d3.area().x(d => xScale(d.date)).y0(chartHeight).y1(d => yScale(d.hashrate)).curve(d3.curveMonotoneX);
+            chartGroup.append('path').datum(hashrateData)
+                .attr('fill', 'url(#hash-area-gradient)').attr('d', area)
+                .attr("opacity", 0).transition().duration(1500).delay(500).attr("opacity", 1);
+        }
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateVisualization('network'); // Start with the network view
+        });
+
+    </script>
+</body>
+</html>
